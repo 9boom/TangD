@@ -17,3 +17,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TANGDNETWORK }}
           channelId: live
           projectId: tangdnetwork
+          target: tangdee
