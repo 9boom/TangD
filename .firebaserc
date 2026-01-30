@@ -1,5 +1,20 @@
 {
   "projects": {
     "default": "tangdnetwork"
-  }
+  },
+  "targets": {
+    "tangdnetwork": {
+      "hosting": {
+        "tangdee": [
+          "#",
+          "SITE_ID",
+          "console.firebase.google.com",
+          "tangdee",
+          "ตัวหลังคือ",
+          "ใน"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
