@@ -1,6 +1,5 @@
 {
   "hosting": {
-    "site": "tangdee",
     "public": "public",
     "ignore": [
       "firebase.json",
