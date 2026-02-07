@@ -37,7 +37,6 @@
 </head>
 <body>
 
-<div id="status">Waiting for GPS...</div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
@@ -142,8 +141,6 @@ if (navigator.geolocation) {
       const { longitude, latitude, heading } = pos.coords;
       const userHeading = heading || 0; // ถ้าไม่มีเข็มทิศ ให้เป็น 0
 
-      document.getElementById('status').innerText = `GPS Active: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-
       // 1. อัปเดตตำแหน่ง Marker (ไม่ create ใหม่)
       playerMarker.setLngLat([longitude, latitude]);
 
@@ -166,7 +163,6 @@ if (navigator.geolocation) {
     },
     (err) => {
       console.error(err);
-      document.getElementById('status').innerText = "GPS Error: " + err.message;
     },
     geoOptions
   );
