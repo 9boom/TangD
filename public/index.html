@@ -1,51 +1,49 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>Game Style Map</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Game Style Map (Optimized)</title>
+  
   <link rel="icon" type="/png" href="/favicon.png">
-    <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="/manifest.json">
 
-  <link
-    href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css"
-    rel="stylesheet"
-  />
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 
   <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-    }
-    #map {
-      width: 100%;
-      height: 100%;
-    }
+    body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-    /* จุดตำแหน่งเรา */
+    /* Player: ยังคงเป็น DOM เพราะต้องการ Animation แบบ CSS (Pulse) */
     .player {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       background: #00aaff;
       border: 3px solid white;
       border-radius: 50%;
-      box-shadow: 0 0 10px rgba(0,170,255,0.8);
+      box-shadow: 0 0 15px rgba(0, 170, 255, 0.9);
+      transition: all 0.1s ease; /* ช่วยให้ขยับนุ่มนวลขึ้น */
     }
 
-    /* ถังขยะ */
-    .bin {
-      font-size: 24px;
+    /* Loading indicator */
+    #status {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.7); color: #fff;
+      padding: 5px 10px; border-radius: 4px;
+      font-family: sans-serif; font-size: 12px;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
 
+<div id="status">Waiting for GPS...</div>
 <div id="map"></div>
 
-<script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
 
 <script>
+// 1. Setup Map
 const map = new maplibregl.Map({
   container: 'map',
   style: {
@@ -55,85 +53,127 @@ const map = new maplibregl.Map({
         type: 'raster',
         tiles: [
           'https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
-          'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
-          'https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'
+          'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'
         ],
-        tileSize: 256
+        tileSize: 256,
+        attribution: '&copy; CartoDB'
       }
     },
     layers: [
-      {
-        id: 'carto-base',
-        type: 'raster',
-        source: 'carto'
-      }
+      { id: 'carto-base', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 22 }
     ]
   },
-
   center: [100.5018, 13.7563],
   zoom: 16,
-  pitch: 60,      // 🔥 เอียงแผนที่
-  bearing: -20    // 🔥 หมุนกล้องนิดนึง
+  pitch: 60,
+  bearing: -20,
+  antialias: true // ช่วยให้ขอบคมชัดขึ้นเวลาเอียงภาพ
 });
 
-map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: false }));
 
-/* =========================
-   ถังขยะสมมุติ
-========================= */
-const bins = [
-  [100.5030, 13.7570],
-  [100.5005, 13.7555],
-  [100.5022, 13.7548]
-];
+// =========================
+// 🔥 PERFORMANCE TWEAK 1: ใช้ GeoJSON + Layer แทน DOM Marker สำหรับ Object จำนวนมาก
+// =========================
+map.on('load', () => {
+  // ข้อมูลตำแหน่งถังขยะ
+  const binsData = {
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5030, 13.7570] } },
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5005, 13.7555] } },
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5022, 13.7548] } }
+    ]
+  };
 
-bins.forEach(pos => {
-  const el = document.createElement('div');
-  el.className = 'bin';
-  el.textContent = '🗑️';
+  // เพิ่ม Source
+  map.addSource('bins-source', {
+    type: 'geojson',
+    data: binsData
+  });
 
-  new maplibregl.Marker(el)
-    .setLngLat(pos)
-    .addTo(map);
+  // เพิ่ม Layer (เรนเดอร์ด้วย GPU)
+  map.addLayer({
+    id: 'bins-layer',
+    type: 'symbol',
+    source: 'bins-source',
+    layout: {
+      'text-field': '🗑️', // ใช้อิโมจิแทนรูปภาพ ประหยัดโหลด
+      'text-size': 28,
+      'text-allow-overlap': true
+    },
+    paint: {
+      'text-opacity': 0.9
+    }
+  });
 });
 
-/* =========================
-   ตำแหน่งผู้เล่น (เรา)
-========================= */
+// =========================
+// 🔥 PERFORMANCE TWEAK 2: Optimize Player Marker & Camera
+// =========================
+
 const playerEl = document.createElement('div');
 playerEl.className = 'player';
 
-const playerMarker = new maplibregl.Marker(playerEl);
+// สร้าง Marker รอไว้เลย (ยังไม่ Add)
+const playerMarker = new maplibregl.Marker({
+    element: playerEl,
+    pitchAlignment: 'map' // ให้จุดแบนราบไปกับพื้นเมื่อเอียงแผนที่ (ดูเป็น 3D ขึ้น)
+})
+.setLngLat([0,0]); // ค่าเริ่มต้น
+
+let isFirstFix = true;
+let lastUpdate = 0;
 
 if (navigator.geolocation) {
-  navigator.geolocation.watchPosition(
-    pos => {
-      const lng = pos.coords.longitude;
-      const lat = pos.coords.latitude;
-      const heading = pos.coords.heading || 0;
+  const geoOptions = {
+    enableHighAccuracy: true,
+    maximumAge: 1000, // ยอมรับค่าเก่าไม่เกิน 1 วิ (ลดการเรียก GPS ถี่เกินไป)
+    timeout: 10000
+  };
 
-      playerMarker
-        .setLngLat([lng, lat])
-        .addTo(map);
+  const watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const now = Date.now();
+      // ลดการอัปเดตถ้ารัวเกินไป (Throttle)
+      if (now - lastUpdate < 500 && !isFirstFix) return; 
+      lastUpdate = now;
 
-      // กล้องไหลตามแบบเกม
-      map.easeTo({
-        center: [lng, lat],
-        bearing: heading,
-        zoom: 17,
-        pitch: 60,
-        duration: 1000
-      });
+      const { longitude, latitude, heading } = pos.coords;
+      const userHeading = heading || 0; // ถ้าไม่มีเข็มทิศ ให้เป็น 0
+
+      document.getElementById('status').innerText = `GPS Active: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+
+      // 1. อัปเดตตำแหน่ง Marker (ไม่ create ใหม่)
+      playerMarker.setLngLat([longitude, latitude]);
+
+      // Add to map แค่ครั้งแรก
+      if (isFirstFix) {
+        playerMarker.addTo(map);
+        map.flyTo({ center: [longitude, latitude], zoom: 17 });
+        isFirstFix = false;
+      }
+
+      // 2. ขยับกล้องตาม (Check ว่า user ไม่ได้กำลังลากแมพอยู่)
+      if (!map.isMoving() || isFirstFix) {
+         map.easeTo({
+            center: [longitude, latitude],
+            bearing: userHeading, // หมุนตามทิศที่เดิน
+            duration: 1000,       // อนิเมชั่นไหลๆ
+            easing: t => t        // Linear easing เพื่อความต่อเนื่อง
+         });
+      }
     },
-    err => {
+    (err) => {
       console.error(err);
-      alert("ไม่สามารถเข้าถึงตำแหน่งได้");
+      document.getElementById('status').innerText = "GPS Error: " + err.message;
     },
-    {
-      enableHighAccuracy: true
-    }
+    geoOptions
   );
+} else {
+  alert("Browser ไม่รองรับ Geolocation");
 }
+
 </script>
 
 </body>
