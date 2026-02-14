@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Game Style Map (Optimized)</title>
+  <title>Map with Style & Compass</title>
   
-  <link rel="icon" type="/png" href="/favicon.png">
-  <link rel="manifest" href="/manifest.json">
-
   <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 
   <style>
-    body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+    body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-    /* Player: ยังคงเป็น DOM เพราะต้องการ Animation แบบ CSS (Pulse) */
+    /* Player Marker */
     .player {
       width: 20px;
       height: 20px;
@@ -22,152 +19,314 @@
       border: 3px solid white;
       border-radius: 50%;
       box-shadow: 0 0 15px rgba(0, 170, 255, 0.9);
-      transition: all 0.1s ease; /* ช่วยให้ขยับนุ่มนวลขึ้น */
+      transition: all 0.1s ease;
+      z-index: 100;
+    }
+    
+    /* Cone of vision (ลูกศรบอกทิศที่ตัว Player หัน) */
+    .player-heading {
+        width: 0; 
+        height: 0; 
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-bottom: 20px solid rgba(0, 170, 255, 0.5);
+        position: absolute;
+        top: -25px;
+        left: 0;
+        transform-origin: bottom center;
+        pointer-events: none;
     }
 
-    /* Loading indicator */
+    /* UI Controls Container */
+    .ui-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* Style Selector */
+    select {
+        padding: 8px;
+        border-radius: 5px;
+        border: none;
+        background: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        font-size: 14px;
+    }
+
+    /* Compass Button */
+    #compass-btn {
+        padding: 10px;
+        background: #fff;
+        border: none;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        cursor: pointer;
+        font-weight: bold;
+        display: none; /* ซ่อนก่อน จะโชว์ถ้าเป็น iOS หรือจำเป็นต้องกดขอสิทธิ์ */
+    }
+    #compass-btn.active {
+        background: #00aaff;
+        color: white;
+    }
+
     #status {
       position: absolute; top: 10px; left: 10px;
       background: rgba(0,0,0,0.7); color: #fff;
       padding: 5px 10px; border-radius: 4px;
-      font-family: sans-serif; font-size: 12px;
-      z-index: 10;
+      font-size: 12px; z-index: 10;
     }
   </style>
 </head>
 <body>
 
+<div id="status">Waiting for GPS...</div>
 <div id="map"></div>
+
+<div class="ui-controls">
+    <select id="style-selector">
+        <option value="light">แผนที่: สว่าง (Light)</option>
+        <option value="dark">แผนที่: มืด (Dark)</option>
+        <option value="satellite">แผนที่: ดาวเทียม (Satellite)</option>
+    </select>
+    <button id="compass-btn">เปิดเข็มทิศ</button>
+</div>
 
 <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
 
 <script>
-// 1. Setup Map
+// =========================
+// 1. Defind Styles Definitions
+// =========================
+const styles = {
+    light: {
+        version: 8,
+        sources: {
+            'raster-tiles': {
+                type: 'raster',
+                tiles: ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; CartoDB'
+            }
+        },
+        layers: [{ id: 'simple-tiles', type: 'raster', source: 'raster-tiles', minzoom: 0, maxzoom: 22 }]
+    },
+    dark: {
+        version: 8,
+        sources: {
+            'raster-tiles': {
+                type: 'raster',
+                tiles: ['https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; CartoDB'
+            }
+        },
+        layers: [{ id: 'simple-tiles', type: 'raster', source: 'raster-tiles', minzoom: 0, maxzoom: 22 }]
+    },
+    satellite: {
+        version: 8,
+        sources: {
+            'raster-tiles': {
+                type: 'raster',
+                // ใช้ Esri World Imagery (ฟรีและละเอียด)
+                tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                tileSize: 256,
+                attribution: '&copy; Esri'
+            }
+        },
+        layers: [{ id: 'simple-tiles', type: 'raster', source: 'raster-tiles', minzoom: 0, maxzoom: 22 }]
+    }
+};
+
+// =========================
+// 2. Setup Map
+// =========================
 const map = new maplibregl.Map({
   container: 'map',
-  style: {
-    version: 8,
-    sources: {
-      carto: {
-        type: 'raster',
-        tiles: [
-          'https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
-          'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'
-        ],
-        tileSize: 256,
-        attribution: '&copy; CartoDB'
-      }
-    },
-    layers: [
-      { id: 'carto-base', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 22 }
-    ]
-  },
+  style: styles.light, // เริ่มต้นด้วย Light
   center: [100.5018, 13.7563],
-  zoom: 16,
+  zoom: 17,
   pitch: 60,
-  bearing: -20,
-  antialias: true // ช่วยให้ขอบคมชัดขึ้นเวลาเอียงภาพ
+  bearing: 0,
+  antialias: true
 });
 
-map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: false }));
+// ฟังก์ชันสำหรับโหลด Layer ข้อมูล (ถังขยะ) กลับมา
+// เราต้องแยกฟังก์ชันนี้ออกมา เพราะเวลาเปลี่ยน Style เลเยอร์เก่าจะหายไป
+function addGameLayers() {
+    if (map.getSource('bins-source')) return; // ถ้ามีอยู่แล้วไม่ต้องทำซ้ำ
 
-// =========================
-// 🔥 PERFORMANCE TWEAK 1: ใช้ GeoJSON + Layer แทน DOM Marker สำหรับ Object จำนวนมาก
-// =========================
-map.on('load', () => {
-  // ข้อมูลตำแหน่งถังขยะ
-  const binsData = {
-    type: 'FeatureCollection',
-    features: [
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5030, 13.7570] } },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5005, 13.7555] } },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5022, 13.7548] } }
-    ]
-  };
+    const binsData = {
+        type: 'FeatureCollection',
+        features: [
+            { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5030, 13.7570] } },
+            { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5005, 13.7555] } },
+            { type: 'Feature', geometry: { type: 'Point', coordinates: [100.5022, 13.7548] } }
+        ]
+    };
 
-  // เพิ่ม Source
-  map.addSource('bins-source', {
-    type: 'geojson',
-    data: binsData
-  });
+    map.addSource('bins-source', { type: 'geojson', data: binsData });
+    
+    // เลือกสีตัวอักษรตามสไตล์แผนที่ (ถ้ามืดให้ใช้อักษรขาว)
+    const isDark = document.getElementById('style-selector').value === 'satellite' || document.getElementById('style-selector').value === 'dark';
+    
+    map.addLayer({
+        id: 'bins-layer',
+        type: 'symbol',
+        source: 'bins-source',
+        layout: {
+            'text-field': '🗑️',
+            'text-size': 28,
+            'text-allow-overlap': true,
+            'text-offset': [0, -0.5] // ลอยเหนือจุดนิดหน่อย
+        },
+        paint: {
+            'text-opacity': 0.9,
+            'text-halo-color': isDark ? '#000' : '#fff',
+            'text-halo-width': 2
+        }
+    });
+}
 
-  // เพิ่ม Layer (เรนเดอร์ด้วย GPU)
-  map.addLayer({
-    id: 'bins-layer',
-    type: 'symbol',
-    source: 'bins-source',
-    layout: {
-      'text-field': '🗑️', // ใช้อิโมจิแทนรูปภาพ ประหยัดโหลด
-      'text-size': 28,
-      'text-allow-overlap': true
-    },
-    paint: {
-      'text-opacity': 0.9
-    }
-  });
+// Event เมื่อ Map โหลดเสร็จ หรือ เปลี่ยน Style เสร็จ
+map.on('load', addGameLayers);
+map.on('style.load', addGameLayers); // สำคัญ: เรียกซ้ำเมื่อเปลี่ยน Style
+
+// Logic การเปลี่ยน Style
+document.getElementById('style-selector').addEventListener('change', (e) => {
+    const selectedStyle = styles[e.target.value];
+    map.setStyle(selectedStyle);
 });
 
-// =========================
-// 🔥 PERFORMANCE TWEAK 2: Optimize Player Marker & Camera
-// =========================
 
+// =========================
+// 3. Player & Geolocation
+// =========================
 const playerEl = document.createElement('div');
 playerEl.className = 'player';
+// เพิ่มลูกศรเล็กๆ บอกทิศที่ Player หัน
+const headingEl = document.createElement('div');
+headingEl.className = 'player-heading';
+playerEl.appendChild(headingEl);
 
-// สร้าง Marker รอไว้เลย (ยังไม่ Add)
 const playerMarker = new maplibregl.Marker({
     element: playerEl,
-    pitchAlignment: 'map' // ให้จุดแบนราบไปกับพื้นเมื่อเอียงแผนที่ (ดูเป็น 3D ขึ้น)
-})
-.setLngLat([0,0]); // ค่าเริ่มต้น
+    pitchAlignment: 'map',
+    rotationAlignment: 'map' // ให้หมุนไปพร้อมกับแผนที่
+}).setLngLat([0,0]);
 
+let currentPos = { lng: 0, lat: 0 };
 let isFirstFix = true;
-let lastUpdate = 0;
 
 if (navigator.geolocation) {
-  const geoOptions = {
-    enableHighAccuracy: true,
-    maximumAge: 1000, // ยอมรับค่าเก่าไม่เกิน 1 วิ (ลดการเรียก GPS ถี่เกินไป)
-    timeout: 10000
-  };
+    navigator.geolocation.watchPosition((pos) => {
+        const { longitude, latitude } = pos.coords;
+        currentPos = { lng: longitude, lat: latitude };
+        
+        document.getElementById('status').innerText = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 
-  const watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const now = Date.now();
-      // ลดการอัปเดตถ้ารัวเกินไป (Throttle)
-      if (now - lastUpdate < 500 && !isFirstFix) return; 
-      lastUpdate = now;
+        playerMarker.setLngLat([longitude, latitude]);
 
-      const { longitude, latitude, heading } = pos.coords;
-      const userHeading = heading || 0; // ถ้าไม่มีเข็มทิศ ให้เป็น 0
+        if (isFirstFix) {
+            playerMarker.addTo(map);
+            map.flyTo({ center: [longitude, latitude], zoom: 17 });
+            isFirstFix = false;
+        }
 
-      // 1. อัปเดตตำแหน่ง Marker (ไม่ create ใหม่)
-      playerMarker.setLngLat([longitude, latitude]);
+        // ย้ายกล้องตามตัวผู้เล่น (แต่ไม่หมุน Bearing ที่นี่แล้ว เพราะจะใช้เข็มทิศแทน)
+        if (!map.isMoving() && compassModeEnabled) {
+             map.easeTo({
+                center: [longitude, latitude],
+                duration: 500
+             });
+        }
+    }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+}
 
-      // Add to map แค่ครั้งแรก
-      if (isFirstFix) {
-        playerMarker.addTo(map);
-        map.flyTo({ center: [longitude, latitude], zoom: 17 });
-        isFirstFix = false;
-      }
+// =========================
+// 4. Compass / Device Orientation Logic
+// =========================
+let compassModeEnabled = false;
+const compassBtn = document.getElementById('compass-btn');
 
-      // 2. ขยับกล้องตาม (Check ว่า user ไม่ได้กำลังลากแมพอยู่)
-      if (!map.isMoving() || isFirstFix) {
-         map.easeTo({
-            center: [longitude, latitude],
-            bearing: userHeading, // หมุนตามทิศที่เดิน
-            duration: 1000,       // อนิเมชั่นไหลๆ
-            easing: t => t        // Linear easing เพื่อความต่อเนื่อง
-         });
-      }
-    },
-    (err) => {
-      console.error(err);
-    },
-    geoOptions
-  );
-} else {
-  alert("Browser ไม่รองรับ Geolocation");
+// ตรวจสอบว่าเป็น iOS 13+ หรือไม่ (ต้องขอ Permission)
+if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    compassBtn.style.display = 'block'; // โชว์ปุ่มให้กด
+} else if (window.DeviceOrientationEvent) {
+    // Android หรือ iOS รุ่นเก่า ลองเริ่มเลย
+    compassBtn.style.display = 'block';
+    // initCompass(); // บาง browser ยอมให้รันเลย แต่ส่วนใหญ่ต้องกดปุ่ม
+}
+
+compassBtn.addEventListener('click', () => {
+    initCompass();
+});
+
+function initCompass() {
+    // 1. กรณี iOS 13+
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(response => {
+                if (response === 'granted') {
+                    enableCompassListener();
+                } else {
+                    alert('Permission denied');
+                }
+            })
+            .catch(console.error);
+    } else {
+        // 2. Android / Non-iOS
+        enableCompassListener();
+    }
+}
+
+function enableCompassListener() {
+    compassModeEnabled = true;
+    compassBtn.classList.add('active');
+    compassBtn.innerText = "Compass ON";
+    
+    window.addEventListener('deviceorientation', handleOrientation);
+}
+
+let lastCompassUpdate = 0;
+
+function handleOrientation(event) {
+    // Throttle: อัปเดตไม่เกิน 30 fps เพื่อประหยัดแบตและลดการกระตุก
+    const now = Date.now();
+    if (now - lastCompassUpdate < 30) return;
+    lastCompassUpdate = now;
+
+    let compassHeading = 0;
+
+    // คำนวณทิศทาง (Logic นี้รองรับทั้ง iOS และ Android)
+    if (event.webkitCompassHeading) {
+        // iOS
+        compassHeading = event.webkitCompassHeading;
+    } else {
+        // Android (ต้องคำนวณจาก alpha)
+        // alpha คือ 0 เมื่อหันไปทิศเหนือ (ในบาง device) แต่มาตรฐานจริงๆ ซับซ้อนกว่า
+        // โค้ดนี้ใช้แบบพื้นฐานสำหรับ Android
+        compassHeading = 360 - event.alpha;
+    }
+
+    // ปรับให้ค่าอยู่ระหว่าง 0-360
+    if (compassHeading < 0) compassHeading += 360;
+    if (compassHeading >= 360) compassHeading -= 360;
+
+    // อัปเดต Map Bearing (หมุนแผนที่ตามมือถือ)
+    // ใช้ easeTo แบบสั้นๆ เพื่อความนุ่มนวล
+    map.easeTo({
+        bearing: compassHeading,
+        duration: 100, // อนิเมชั่นสั้นมากๆ เพื่อให้รู้สึก Realtime
+        easing: t => t // Linear
+    });
+
+    // อัปเดต Status
+    // document.getElementById('status').innerText += ` | Head: ${Math.round(compassHeading)}°`;
 }
 
 </script>
