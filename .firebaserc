@@ -1,15 +1,5 @@
 {
   "projects": {
-    "default": "tangdnetwork"
-  },
-  "targets": {
-    "tangdnetwork": {
-      "hosting": {
-        "tangdee": [
-          "tangdee"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "default": "promptting-network"
+  }
 }
