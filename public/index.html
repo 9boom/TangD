@@ -7,60 +7,11 @@
   <link rel="shortcut icon" href="favicon.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: #0b1020;
-      color: #e7e9ee;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
-    }
-
-    #map {
-      height: 100vh;
-      width: 100vw;
-    }
-
-    .user-arrow {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.25);
-      display: grid;
-      place-items: center;
-      transform-origin: center;
-    }
-
-    .user-arrow::before {
-      content: "";
-      width: 0;
-      height: 0;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-bottom: 10px solid #2ee4ff;
-      transform: translateY(-1px);
-      filter: drop-shadow(0 2px 6px rgba(46, 228, 255, 0.35));
-    }
-  </style>
-
 </head>
 <body>
-  <div id="map" aria-label="Map"></div>
-
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
-
+  <h1 style="color:white">
+    PromptTing Foundations
+  </h1>
   <script type="module">
   // Import the functions you need from the SDKs you need
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
@@ -83,189 +34,17 @@
   // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const analytics = getAnalytics(app);
-
-  // --- Leaflet map (responsive, GPS lock, marker, compass->flyby rotation) ---
-
-  const map = L.map("map", {
-    rotate: true,
-    bearing: 0,
-    zoomControl: true,
-  }).setView([13.7563, 100.5018], 13);
-
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
-
-  const userIcon = L.divIcon({
-    className: "",
-    html: `<div class="user-arrow" id="userArrow"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
-
-  const userMarker = L.marker(map.getCenter(), { icon: userIcon }).addTo(map);
-  const accuracyCircle = L.circle(map.getCenter(), {
-    radius: 0,
-    color: "#2ee4ff",
-    weight: 1,
-    opacity: 0.9,
-    fillColor: "#2ee4ff",
-    fillOpacity: 0.10,
-  }).addTo(map);
-
-  let watchId = null;
-  let compassEnabled = false; // true when we have real heading source
-  let lastHeading = null;
-  let flybyRaf = null;
-  let flybyStartTs = null;
-
-  const normalizeDeg = (deg) => ((deg % 360) + 360) % 360;
-
-  const applyHeadingToUI = (headingDeg) => {
-    const arrow = document.getElementById("userArrow");
-    if (arrow) arrow.style.transform = `rotate(${headingDeg}deg)`;
-  };
-
-  const setMapBearing = (bearingDeg) => {
-    if (typeof map.setBearing === "function") map.setBearing(normalizeDeg(bearingDeg));
-  };
-
-  const stopFlyby = () => {
-    if (flybyRaf != null) cancelAnimationFrame(flybyRaf);
-    flybyRaf = null;
-    flybyStartTs = null;
-  };
-
-  const startFlyby = () => {
-    // "flyby" fallback when no compass: rotate camera continuously
-    if (typeof map.setBearing !== "function") return;
-    stopFlyby();
-    const baseBearing = normalizeDeg(map.getBearing?.() ?? 0);
-    flybyStartTs = null;
-
-    const speedDegPerSec = 12; // gentle rotation
-    const tick = (ts) => {
-      if (flybyStartTs == null) flybyStartTs = ts;
-      const elapsedSec = (ts - flybyStartTs) / 1000;
-      setMapBearing(baseBearing + elapsedSec * speedDegPerSec);
-      flybyRaf = requestAnimationFrame(tick);
-    };
-    flybyRaf = requestAnimationFrame(tick);
-  };
-
-  const startGps = () => {
-    if (!("geolocation" in navigator)) return;
-
-    if (watchId != null) return;
-
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy, heading } = pos.coords;
-        const latlng = [latitude, longitude];
-
-        userMarker.setLatLng(latlng);
-        accuracyCircle.setLatLng(latlng);
-        if (Number.isFinite(accuracy)) accuracyCircle.setRadius(accuracy);
-
-        // lock camera to user; keep zoom user-selected
-        map.setView(latlng, map.getZoom(), { animate: true });
-
-        if (Number.isFinite(heading)) {
-          lastHeading = heading;
-          applyHeadingToUI(heading);
-          if (compassEnabled) setMapBearing(heading);
-        }
-      },
-      (err) => {
-        if (watchId != null) {
-          navigator.geolocation.clearWatch(watchId);
-          watchId = null;
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 15000,
-      }
-    );
-  };
-
-  const stopGps = () => {
-    if (watchId == null) return;
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-  };
-
-  const onDeviceOrientation = (event) => {
-    let heading = null;
-
-    // iOS Safari
-    if (typeof event.webkitCompassHeading === "number") {
-      heading = event.webkitCompassHeading;
-    } else if (typeof event.alpha === "number") {
-      // Many browsers: alpha is clockwise from device's initial orientation; treat as compass-ish.
-      heading = 360 - event.alpha;
-    }
-
-    if (heading == null) return;
-    heading = normalizeDeg(heading);
-
-    lastHeading = heading;
-    applyHeadingToUI(heading);
-    if (compassEnabled) setMapBearing(heading);
-  };
-
-  const startCompass = async () => {
-    // Prefer plugin built-in handler if present
-    if (map?.compassBearing?.enable) {
-      map.compassBearing.enable();
-      compassEnabled = true;
-      stopFlyby();
-      return;
-    }
-
-    const canListen = "DeviceOrientationEvent" in window;
-    if (!canListen) {
-      compassEnabled = false;
-      return;
-    }
-
-    // iOS requires explicit permission
-    if (typeof DeviceOrientationEvent.requestPermission === "function") {
-      try {
-        const res = await DeviceOrientationEvent.requestPermission();
-        if (res !== "granted") {
-          compassEnabled = false;
-          return;
-        }
-      } catch {
-        compassEnabled = false;
-        return;
-      }
-    }
-
-    window.addEventListener("deviceorientationabsolute", onDeviceOrientation, true);
-    window.addEventListener("deviceorientation", onDeviceOrientation, true);
-
-    compassEnabled = true;
-    if (lastHeading != null) setMapBearing(lastHeading);
-    stopFlyby();
-  };
-
-  const stopCompass = () => {
-    if (map?.compassBearing?.disable) map.compassBearing.disable();
-    window.removeEventListener("deviceorientationabsolute", onDeviceOrientation, true);
-    window.removeEventListener("deviceorientation", onDeviceOrientation, true);
-    compassEnabled = false;
-  };
-
-  // Autostart: ask GPS permission (browser popup), lock camera, enable compass if supported,
-  // otherwise fallback to flyby camera rotation.
-  startGps();
-  await startCompass();
-  if (!compassEnabled) startFlyby();
   </script>
+
+  <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker: Registered (Scope: ' + reg.scope + ')'))
+                    .catch(err => console.log('Service Worker: Error: ' + err));
+            });
+        }
+    </script>
 
 </body>
 </html>
