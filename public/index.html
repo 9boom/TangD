@@ -6,21 +6,384 @@
   <title>พร้อมทิ้ง</title>
   <link rel="shortcut icon" href="favicon.png" type="image/png">
   <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+    html, body {
+      width: 100%; height: 100%;
+      font-family: 'Noto Sans Thai', 'Sarabun', sans-serif;
+      overflow: hidden;
+      background: #ccc;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      max-width: 412px;
+      height: 100dvh;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    /* ─── MAP ─── */
+    #map {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+    
+    .leaflet-control-zoom { display: none !important; }
+
+    /* ─── TOP BAR ─── */
+    #topbar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 500;
+      background: #0ba06b;
+      padding: 10px 16px 10px;
+    }
+    #topbar .lbl-small {
+      font-size: 11.5px;
+      color: #aaeece;
+      line-height: 1.3;
+    }
+    #topbar .score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+    #topbar .score-num {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+    }
+    #topbar .score-exp {
+      font-size: 15px;
+      font-weight: 700;
+      color: #cff5e3;
+      letter-spacing: 1px;
+    }
+    #topbar .lv-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 5px;
+    }
+    #topbar .lv-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+    #topbar .bar-bg {
+      flex: 1;
+      height: 9px;
+      background: rgba(255,255,255,0.26);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #topbar .bar-fill {
+      height: 100%;
+      width: 53%;
+      background: #fff;
+      border-radius: 99px;
+    }
+    #topbar .lv-next {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    /* ─── RIGHT SIDE BUTTONS ─── */
+    #right-btns {
+      position: absolute;
+      right: 8px;
+      top: 148px;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .rbtn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .rbtn-circle {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .rbtn-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #111;
+      text-align: center;
+    }
+
+    /* ─── BOTTOM ─── */
+    #bottom-wrap {
+      position: absolute;
+      bottom: 24px;
+      left: 0; right: 0;
+      z-index: 500;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    #qr-btn {
+      width: 90px;
+      height: 90px;
+      border-radius: 20px;
+      background: #1b9e57;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.28);
+      cursor: pointer;
+    }
+
+    #mybin-btn {
+      position: absolute;
+      right: 10px;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    #mybin-btn .icon-box {
+      width: 60px;
+      height: 60px;
+      background: #fff;
+      border-radius: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #mybin-btn span {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #111;
+    }
+
+    /* ─── PULSE ─── */
+    @keyframes ripple {
+      0%   { transform: translate(-50%,-50%) scale(0.7); opacity: 0.7; }
+      70%  { transform: translate(-50%,-50%) scale(1.6); opacity: 0; }
+      100% { transform: translate(-50%,-50%) scale(0.7); opacity: 0; }
+    }
+    .pulse-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: rgba(30,150,230,0.28);
+      transform: translate(-50%,-50%);
+      animation: ripple 2s infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .mwrap {
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mwrap svg { position: relative; z-index: 1; }
+  </style>
 </head>
 <body>
-  <h1 style="color:white">
-    PromptTing Foundations
-  </h1>
-  <script type="module">
-  // Import the functions you need from the SDKs you need
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="lbl-small">คะแนนสะสม</div>
+    <div class="score-row">
+      <span class="score-num">45</span>
+      <span class="score-exp">EXP</span>
+    </div>
+    <div class="lv-row">
+      <span class="lv-text">LV 0</span>
+      <div class="bar-bg"><div class="bar-fill"></div></div>
+      <span class="lv-next">1</span>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map"></div>
+
+  <!-- RIGHT BUTTONS -->
+  <div id="right-btns">
+
+    <!-- ตารางอันดับ -->
+    <button class="rbtn">
+      <div class="rbtn-circle">
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+          <path d="M6 28 L9.5 14 L15 21 L19 7 L23 21 L28.5 14 L32 28 Z" fill="#F9A825" stroke="#E65100" stroke-width="1.2" stroke-linejoin="round"/>
+          <rect x="6" y="28" width="26" height="5" rx="2.5" fill="#F9A825" stroke="#E65100" stroke-width="1"/>
+          <circle cx="19" cy="7" r="2.8" fill="#FFF9C4" stroke="#E65100" stroke-width="0.8"/>
+          <circle cx="9.5" cy="14" r="2" fill="#FFF9C4" stroke="#E65100" stroke-width="0.6"/>
+          <circle cx="28.5" cy="14" r="2" fill="#FFF9C4" stroke="#E65100" stroke-width="0.6"/>
+        </svg>
+      </div>
+      <span class="rbtn-label">ตารางอันดับ</span>
+    </button>
+
+    <!-- ภารกิจ -->
+    <button class="rbtn">
+      <div class="rbtn-circle">
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+          <!-- clipboard -->
+          <rect x="8" y="9" width="22" height="25" rx="3" fill="#EF9F27" stroke="#BA7517" stroke-width="1.2"/>
+          <rect x="14" y="5.5" width="10" height="7" rx="2.5" fill="#BA7517"/>
+          <line x1="12" y1="18" x2="21" y2="18" stroke="#7B4408" stroke-width="2" stroke-linecap="round"/>
+          <line x1="12" y1="22" x2="21" y2="22" stroke="#7B4408" stroke-width="2" stroke-linecap="round"/>
+          <!-- red refresh badge -->
+          <circle cx="26" cy="27" r="7" fill="#E53935"/>
+          <path d="M23.2 27.5 A3.2 3.2 0 1 1 26 30.8" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <polygon points="26,30.8 24,32.5 24.5,29.8" fill="white"/>
+        </svg>
+      </div>
+      <span class="rbtn-label">ภารกิจ</span>
+    </button>
+
+    <!-- เหรียญ -->
+    <button class="rbtn">
+      <div class="rbtn-circle">
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+          <!-- light blue circle bg -->
+          <circle cx="19" cy="19" r="15" fill="#E3F2FD"/>
+          <!-- tree trunk -->
+          <rect x="17.5" y="26" width="3" height="7" rx="1.5" fill="#795548"/>
+          <!-- tree layers -->
+          <ellipse cx="19" cy="21" rx="7.5" ry="9" fill="#1B5E20"/>
+          <ellipse cx="19" cy="19" rx="6" ry="7.5" fill="#2E7D32"/>
+          <ellipse cx="19" cy="17" rx="4.5" ry="6" fill="#43A047"/>
+          <ellipse cx="19" cy="15" rx="3" ry="4.5" fill="#66BB6A"/>
+          <!-- shine -->
+          <ellipse cx="16.5" cy="13" rx="1.8" ry="2.2" fill="#A5D6A7" opacity="0.55"/>
+        </svg>
+      </div>
+      <span class="rbtn-label">เหรียญ</span>
+    </button>
+
+  </div>
+
+  <!-- BOTTOM -->
+  <div id="bottom-wrap">
+    <button id="qr-btn">
+      <svg width="58" height="58" viewBox="0 0 58 58" fill="none">
+        <rect x="5" y="5" width="20" height="20" rx="3.5" stroke="white" stroke-width="3.5" fill="none"/>
+        <rect x="10" y="10" width="10" height="10" rx="2" fill="white"/>
+        <rect x="33" y="5" width="20" height="20" rx="3.5" stroke="white" stroke-width="3.5" fill="none"/>
+        <rect x="38" y="10" width="10" height="10" rx="2" fill="white"/>
+        <rect x="5" y="33" width="20" height="20" rx="3.5" stroke="white" stroke-width="3.5" fill="none"/>
+        <rect x="10" y="38" width="10" height="10" rx="2" fill="white"/>
+        <rect x="33" y="33" width="6" height="6" rx="1" fill="white"/>
+        <rect x="41" y="33" width="6" height="6" rx="1" fill="white"/>
+        <rect x="49" y="33" width="6" height="6" rx="1" fill="white"/>
+        <rect x="33" y="41" width="6" height="6" rx="1" fill="white"/>
+        <rect x="49" y="41" width="6" height="6" rx="1" fill="white"/>
+        <rect x="33" y="49" width="6" height="6" rx="1" fill="white"/>
+        <rect x="41" y="49" width="6" height="6" rx="1" fill="white"/>
+        <rect x="49" y="49" width="6" height="6" rx="1" fill="white"/>
+      </svg>
+    </button>
+
+    <button id="mybin-btn">
+      <div class="icon-box">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <!-- handle -->
+          <rect x="14" y="6" width="9" height="4" rx="2" fill="#2E7D32"/>
+          <!-- lid -->
+          <rect x="8" y="9" width="20" height="5.5" rx="2" fill="#388E3C"/>
+          <!-- body -->
+          <rect x="7" y="14" width="22" height="19" rx="3" fill="#4CAF50"/>
+          <!-- lines -->
+          <line x1="13" y1="18" x2="13" y2="29" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <line x1="18" y1="18" x2="18" y2="29" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <line x1="23" y1="18" x2="23" y2="29" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <!-- plus badge -->
+          <circle cx="30" cy="30" r="8" fill="#E53935"/>
+          <line x1="30" y1="26" x2="30" y2="34" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="26" y1="30" x2="34" y2="30" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span>ถังขยะของฉัน</span>
+    </button>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// Map centered on Phuket town area (similar satellite view in screenshot)
+const map = L.map('map', {
+  center: [8.005, 98.335],
+  zoom: 15,
+  zoomControl: false,
+  attributionControl: true,
+  dragging: true,
+  touchZoom: true,
+  scrollWheelZoom: false
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  opacity: 1,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
+}).addTo(map);
+
+// Bin icon builder
+function makeBinIcon(fillColor, lineColor, withPulse) {
+  const svgW = 34, svgH = 40;
+  const svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 34 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="12" y="1" width="10" height="4.5" rx="2" fill="${fillColor}"/>
+    <rect x="4" y="5" width="26" height="6" rx="2" fill="${fillColor}"/>
+    <rect x="5" y="11" width="24" height="25" rx="2.5" fill="${fillColor}"/>
+    <line x1="12" y1="15" x2="12" y2="32" stroke="rgba(255,255,255,0.75)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="17" y1="15" x2="17" y2="32" stroke="rgba(255,255,255,0.75)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="22" y1="15" x2="22" y2="32" stroke="rgba(255,255,255,0.75)" stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+
+  const pulse = withPulse ? `<div class="pulse-ring"></div>` : '';
+  const html = `<div class="mwrap" style="width:${svgW}px;height:${svgH}px;">${pulse}${svg}</div>`;
+
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [svgW, svgH],
+    iconAnchor: [svgW / 2, svgH]
+  });
+}
+
+// Place markers (positions approximate to match screenshot layout)
+L.marker([8.0108, 98.3278], { icon: makeBinIcon('#1976D2','#0D47A1', false) }).addTo(map); // blue
+L.marker([8.0065, 98.3325], { icon: makeBinIcon('#FFC107','#E65100', true)  }).addTo(map); // yellow+pulse
+L.marker([7.9995, 98.3252], { icon: makeBinIcon('#388E3C','#1B5E20', false) }).addTo(map); // green
+L.marker([7.9990, 98.3395], { icon: makeBinIcon('#FFA000','#E65100', false) }).addTo(map); // orange-yellow
+</script>
+
+<script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
   const firebaseConfig = {
     apiKey: "AIzaSyBNhe9qBz_9qR3y0xjWbWfY9mqLnDOw308",
     authDomain: "promptting-network.firebaseapp.com",
@@ -30,21 +393,18 @@
     appId: "1:838286290471:web:276654f13b085d0c302802",
     measurementId: "G-FQ07EGKEQ3"
   };
-
-  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const analytics = getAnalytics(app);
-  </script>
-
-  <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('Service Worker: Registered (Scope: ' + reg.scope + ')'))
-                    .catch(err => console.log('Service Worker: Error: ' + err));
-            });
-        }
-    </script>
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(r => console.log('SW:', r.scope))
+        .catch(e => console.log('SW err:', e));
+    });
+  }
+</script>
 
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cache-v1'; // เปลี่ยนเลขเวอร์ชันเมื่อแก้ไข CSS/JS
+const CACHE_NAME = 'cache-v2'; // เปลี่ยนเลขเวอร์ชันเมื่อแก้ไข CSS/JS
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html'
