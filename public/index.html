@@ -238,6 +238,72 @@
       display: flex; align-items: center; justify-content: center;
     }
     .mwrap svg { position: relative; z-index: 1; }
+
+    /* PWA APP SUGGESTION */
+    /* PWA Banner Styles */
+#pwa-install-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  background: white;
+  z-index: 9999;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  padding: 16px;
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.pwa-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pwa-icon img {
+  border-radius: 8px;
+}
+
+.pwa-text {
+  flex: 1;
+}
+
+.pwa-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #333;
+}
+
+.pwa-desc {
+  font-size: 12px;
+  color: #666;
+}
+
+#pwa-install-btn {
+  background: #0ba06b;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#pwa-close-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  padding: 4px;
+  margin-left: 5px;
+  cursor: pointer;
+}
   </style>
 </head>
 <body>
@@ -360,6 +426,20 @@
       <span>ถังขยะของฉัน</span>
     </button>
   </div>
+
+  <div id="pwa-install-banner" style="display: none;">
+  <div class="pwa-content">
+    <div class="pwa-icon">
+      <img src="icons/favicon.png" width="40" height="40" alt="app icon">
+    </div>
+    <div class="pwa-text">
+      <div class="pwa-title">ติดตั้ง "พร้อมทิ้ง"</div>
+      <div class="pwa-desc">เข้าใช้งานได้รวดเร็วและสะดวกยิ่งขึ้น</div>
+    </div>
+    <button id="pwa-install-btn">ติดตั้ง</button>
+    <button id="pwa-close-btn">✕</button>
+  </div>
+</div>
 
 </div>
 
@@ -525,5 +605,49 @@ L.marker([7.9990, 98.3395], { icon: makeBinIcon('#FFA000','#E65100', false) }).a
   }
 </script>
 
+<script>
+  let deferredPrompt;
+const pwaBanner = document.getElementById('pwa-install-banner');
+const installBtn = document.getElementById('pwa-install-btn');
+const closeBtn = document.getElementById('pwa-close-btn');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // ป้องกัน Chrome (Android) ไม่ให้โชว์ Mini-infobar อัตโนมัติ
+  e.preventDefault();
+  // เก็บ Event ไว้ใช้เรียกตอนกดปุ่ม
+  deferredPrompt = e;
+  
+  // แสดง Banner ของเรา (อาจจะตั้งดีเลย์ 2-3 วินาทีเพื่อให้ผู้ใช้ดูหน้าเว็บก่อน)
+  setTimeout(() => {
+    pwaBanner.style.display = 'block';
+  }, 2000);
+});
+
+installBtn.addEventListener('click', async () => {
+  if (deferredPrompt) {
+    // แสดงหน้าต่างติดตั้งของ Browser
+    deferredPrompt.prompt();
+    
+    // รอรับผลการตัดสินใจของผู้ใช้
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    
+    // เคลียร์ prompt ออก ไม่สามารถใช้ซ้ำได้
+    deferredPrompt = null;
+    // ซ่อน Banner
+    pwaBanner.style.display = 'none';
+  }
+});
+
+closeBtn.addEventListener('click', () => {
+  pwaBanner.style.display = 'none';
+});
+
+// ซ่อน Banner เมื่อติดตั้งสำเร็จแล้ว
+window.addEventListener('appinstalled', (event) => {
+  console.log('App was installed.');
+  pwaBanner.style.display = 'none';
+});
+</script>
 </body>
 </html>
