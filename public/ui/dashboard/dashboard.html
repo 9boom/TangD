@@ -2,51 +2,49 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>ระบบถังขยะ</title>
+<link rel="apple-touch-icon" href="icon.png"> <title>ระบบถังขยะ</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
+  * { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+    /* ป้องกันการแตะแล้วเกิดไฮไลท์สีฟ้าบนมือถือ */
+    -webkit-tap-highlight-color: transparent;
   }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
   body {
     font-family: 'Sarabun', sans-serif;
     background: #f0f0f0;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100vh; /* Fallback สำหรับเบราว์เซอร์เก่า */
+    height: 100dvh; /* ความสูงจริงบนมือถือ หักลบแถบ URL */
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-    overscroll-behavior: none;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+    /* ป้องกันผู้ใช้คลุมดำข้อความ ให้ความรู้สึกเหมือน Native App */
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* STATS BAR */
   .stats-bar {
     display: flex;
-    flex-wrap: wrap;
     gap: 10px;
-    padding: 10px 12px;
+    /* เผื่อพื้นที่ Safe Area ด้านบน (เช่น รอยบาก iPhone) */
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px 12px;
     background: #f0f0f0;
     flex-shrink: 0;
     z-index: 100;
   }
   .stat-card {
     flex: 1;
-    min-width: 150px;
     background: #fff;
     border-radius: 10px;
     padding: 10px 14px;
@@ -77,7 +75,7 @@
 
   /* LEAFLET overrides */
   .leaflet-control-zoom { display: none; }
-  .leaflet-control-attribution { font-size: 9px; opacity: 0.6; }
+  .leaflet-control-attribution { font-size: 9px; opacity: 0.6; margin-bottom: env(safe-area-inset-bottom) !important; }
 
   /* BIN MARKERS */
   .bin-marker-img {
@@ -87,41 +85,60 @@
   }
   .bin-marker-img:active { transform: scale(0.9); }
 
-  /* POPUP CARD (มินิมอลขึ้น) */
+  /* POPUP CARD (เปลี่ยนเป็น Bottom Sheet เพื่อให้เหมาะกับจอมือถือทุกขนาด) */
   .bin-popup {
     position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
     background: #fff;
-    border-radius: 12px;
-    padding: 14px 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    border-radius: 20px 20px 0 0;
+    /* เผื่อพื้นที่ด้านล่างสำหรับ Home Indicator บน iOS */
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
     z-index: 1000;
-    min-width: 180px;
-    display: none;
-    pointer-events: all;
-    max-width: min(92vw, 320px);
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: auto;
   }
-  .bin-popup.visible { display: block; }
+  .bin-popup.visible { transform: translateY(0); }
+  
+  /* ขีดเล็กๆ ด้านบน Popup ให้ดูเหมือนเลื่อนได้ (UI Hint) */
+  .bin-popup::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 5px;
+    background: #ddd;
+    border-radius: 5px;
+  }
+
   .bin-popup h3 {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
     color: #111;
+    text-align: center;
   }
   .bin-popup p {
-    font-size: 12px;
+    font-size: 14px;
     color: #444;
-    margin-bottom: 4px;
-    line-height: 1.4;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
   }
   .btn-delete {
-    margin-top: 10px;
+    margin-top: 16px;
     width: 100%;
     background: #e53935;
     color: #fff;
     border: none;
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 13px;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
     font-weight: 700;
     font-family: 'Sarabun', sans-serif;
     cursor: pointer;
@@ -129,11 +146,12 @@
   }
   .btn-delete:active { background: #b71c1c; }
 
-  /* LEGEND (ปรับดีไซน์ให้มินิมอล) */
+  /* LEGEND */
   .legend {
     position: absolute;
-    bottom: calc(16px + var(--safe-bottom));
-    right: calc(16px + var(--safe-right));
+    /* ขยับขึ้นหลบ Safe area ด้านล่าง */
+    bottom: max(16px, calc(16px + env(safe-area-inset-bottom)));
+    right: 16px;
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(0,0,0,0.05);
@@ -177,39 +195,32 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0.85);
-    background: rgba(0,0,0,0.78);
+    background: rgba(0,0,0,0.85);
     color: #fff;
     padding: 12px 24px;
-    border-radius: 10px;
+    border-radius: 50px;
     font-size: 14px;
     z-index: 9999;
     opacity: 0;
     transition: opacity 0.25s, transform 0.25s;
     pointer-events: none;
+    text-align: center;
   }
   .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
-  /* OVERLAY to close popup */
+  /* OVERLAY */
   .popup-overlay {
     display: none;
     position: fixed;
     inset: 0;
+    background: rgba(0,0,0,0.2); /* เพิ่มพื้นหลังจางๆ เพื่อเน้น Bottom Sheet */
     z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s;
   }
-  .popup-overlay.visible { display: block; }
-
-  /* Small devices: tighten spacing a bit */
-  @media (max-width: 380px) {
-    .stats-bar { gap: 8px; padding: 10px; }
-    .stat-card { min-width: 140px; padding: 10px 12px; }
-    .stat-value { font-size: 18px; }
-    .legend { padding: 10px 12px; min-width: 128px; }
-    .legend-item img { width: 18px; height: 22px; }
-  }
-
-  /* Reduce marker size on very small screens */
-  @media (max-width: 360px) {
-    .leaflet-marker-icon.bin-marker-img { transform: scale(0.85); transform-origin: bottom center; }
+  .popup-overlay.visible { 
+    display: block; 
+    opacity: 1;
   }
 </style>
 </head>
@@ -266,9 +277,9 @@
 
 <div class="bin-popup" id="binPopup">
   <h3>พฤติกรรมถัง</h3>
-  <p>ประเภท: <span id="popType" style="font-weight: 600;">-</span></p>
-  <p>ทิ้งทั้งหมด: <span id="popTotal" style="font-weight: 600;">0</span> ครั้ง</p>
-  <p>ทิ้งถูกประเภท: <span id="popCorrect" style="font-weight: 600;">0</span> ครั้ง</p>
+  <p><span>ประเภท:</span> <span id="popType" style="font-weight: 600;">-</span></p>
+  <p><span>ทิ้งทั้งหมด:</span> <span><span id="popTotal" style="font-weight: 600;">0</span> ครั้ง</span></p>
+  <p><span>ทิ้งถูกประเภท:</span> <span><span id="popCorrect" style="font-weight: 600;">0</span> ครั้ง</span></p>
   <button class="btn-delete" onclick="deleteBin()">ลบถังขยะ</button>
 </div>
 
@@ -281,7 +292,6 @@
 // ======= DATA =======
 let bins = []; 
 
-// แมปชื่อไฟล์รูปภาพตามประเภทของถัง
 const BIN_IMAGES = {
   hazard:  'dangerous.png',
   general: 'normal.png',
@@ -292,18 +302,11 @@ const BIN_IMAGES = {
 // ======= API FETCH =======
 async function fetchBinData() {
   try {    
-    // เรียกใช้ API
     const response = await fetch('http://10.0.3.15:8081/fetch_data');
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
     bins = data;
-    
     renderMarkers();
-    
   } catch (error) {
     console.error('Error fetching bin data:', error);
     showToast('ไม่สามารถเชื่อมต่อกับ Server ได้');
@@ -327,22 +330,18 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let markers = {};
 let selectedBinId = null;
 
-// เปลี่ยนมาใช้รูปภาพแทน SVG
 function createBinIcon(bin) {
-  // ดึงชื่อไฟล์จากประเภท ถ้าไม่ตรงกับอะไรเลยให้ใช้ normal.png เป็นค่าเริ่มต้น
   const fileName = BIN_IMAGES[bin.type] || 'normal.png'; 
-  
   return L.icon({
     iconUrl: `../../assets/binsyms/${fileName}`,
-    iconSize: [68, 80], // ขนาด width 68, height 80 ตามที่ระบุ
-    iconAnchor: [34, 80], // จุดกึ่งกลางด้านล่างเพื่อให้ปักหมุดได้ตรงตำแหน่ง
+    iconSize: [68, 80],
+    iconAnchor: [34, 80],
     popupAnchor: [0, -75],
     className: 'bin-marker-img' 
   });
 }
 
 function renderMarkers() {
-  // clear old
   Object.values(markers).forEach(m => map.removeLayer(m));
   markers = {};
 
@@ -351,7 +350,9 @@ function renderMarkers() {
       const marker = L.marker([bin.lat, bin.lng], { icon: createBinIcon(bin) });
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        showPopup(bin, e.originalEvent);
+        // เลื่อนกล้องไปยังจุดที่กดเบาๆ เพื่อให้อยู่ตรงกลาง (เป็นมิตรกับ PWA)
+        map.panTo(marker.getLatLng()); 
+        showPopup(bin);
       });
       marker.addTo(map);
       markers[bin.id] = marker;
@@ -375,54 +376,34 @@ function updateLegend() {
   document.getElementById('countGeneral').textContent = bins.filter(b => b.type === 'general').length;
 }
 
-// ======= POPUP =======
-function getSafeAreaInsetsPx() {
-  const s = getComputedStyle(document.documentElement);
-  const top = parseFloat(s.getPropertyValue('--safe-top')) || 0;
-  const right = parseFloat(s.getPropertyValue('--safe-right')) || 0;
-  const bottom = parseFloat(s.getPropertyValue('--safe-bottom')) || 0;
-  const left = parseFloat(s.getPropertyValue('--safe-left')) || 0;
-  return { top, right, bottom, left };
-}
-
-function showPopup(bin, evt) {
+// ======= POPUP (แก้ไขไม่ต้องคำนวณ x, y แล้ว ใช้ Bottom Sheet) =======
+function showPopup(bin) {
   selectedBinId = bin.id;
   document.getElementById('popType').textContent = bin.label || '-';
   document.getElementById('popTotal').textContent = bin.total || 0;
   document.getElementById('popCorrect').textContent = bin.correct || 0;
 
-  const popup = document.getElementById('binPopup');
-  popup.classList.add('visible');
+  // นำ Bottom sheet ขึ้นมา
+  document.getElementById('binPopup').classList.add('visible');
   document.getElementById('popupOverlay').classList.add('visible');
-
-  const safe = getSafeAreaInsetsPx();
-  const margin = 8;
-
-  // measure after visible (so width/height are available)
-  const rect = popup.getBoundingClientRect();
-
-  const maxLeft = window.innerWidth - safe.right - rect.width - margin;
-  const maxTop = window.innerHeight - safe.bottom - rect.height - margin;
-
-  const proposedLeft = evt.clientX - 20;
-  const proposedTop = evt.clientY + 10;
-
-  const left = Math.min(Math.max(safe.left + margin, proposedLeft), maxLeft);
-  const top = Math.min(Math.max(safe.top + margin, proposedTop), maxTop);
-
-  popup.style.left = left + 'px';
-  popup.style.top = top + 'px';
 }
 
 function closePopup() {
   document.getElementById('binPopup').classList.remove('visible');
-  document.getElementById('popupOverlay').classList.remove('visible');
+  
+  // ซ่อน Overlay โดยหน่วงเวลาเพื่อให้แอนิเมชันตอนลงสมูท
+  const overlay = document.getElementById('popupOverlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => {
+    overlay.classList.remove('visible');
+    overlay.style.opacity = '';
+  }, 300);
+  
   selectedBinId = null;
 }
 
 function deleteBin() {
   if (!selectedBinId) return;
-  
   bins = bins.filter(b => b.id !== selectedBinId);
   closePopup();
   renderMarkers();
@@ -434,7 +415,7 @@ function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 // ======= CLOSE POPUP ON MAP CLICK =======
@@ -444,6 +425,17 @@ map.on('click', closePopup);
 fetchBinData();
 setInterval(fetchBinData, 10000);
 
+// ======= PWA SERVICE WORKER REGISTRATION =======
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // ต้องสร้างไฟล์ sw.js (Service Worker) ไว้ที่ Root Directory ด้วยนะครับ
+    navigator.serviceWorker.register('/sw.js').then(registration => {
+      console.log('SW registered: ', registration);
+    }).catch(registrationError => {
+      console.log('SW registration failed: ', registrationError);
+    });
+  });
+}
 </script>
 </body>
 </html>
